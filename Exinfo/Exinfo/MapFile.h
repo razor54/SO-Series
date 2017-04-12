@@ -34,7 +34,7 @@ typedef struct Data{
 		double Latitude;            
 		double Longitude;           
 		double Altitude;            
-
+		char AltitudeRef;                 // 0 = above sea level, -1 = below sea level
 		struct Coord_t {
 			double degrees;
 			double minutes;
@@ -119,8 +119,10 @@ static const int BytesPerFormat[] = { 0,1,1,2,4,8,1,1,2,4,8,4,8 };
 #define TAG_THUMBNAIL_LENGTH  0x0202
 
 
+#define OFFSETBASE 6 
 
-void getSubTag(unsigned char* value_ptr, unsigned char* offset_base, unsigned exif_length, image_data* const data, unsigned char** const last_exif_refd_p, bool motorola);
+
+void getGPSData(unsigned char* value_ptr, unsigned char* offset_base, unsigned exif_length, image_data* const data, unsigned gps_sub_ifd_offset, bool motorola);
 
 void clear(image_data* data);
 int Get16m(void * Short);

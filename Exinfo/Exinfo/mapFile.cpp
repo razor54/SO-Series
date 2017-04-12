@@ -237,7 +237,7 @@ int getImageInfo(LPCTSTR image)
 	clear(result);
 
 	/* First directory starts 16 unsigned chars in.  Offsets start at 8 unsigned chars in. */
-	if (!ProcessExifDir(buf + 14, buf + 6, len - 6, result, motorola_code))
+	if (!ProcessExifDir(buf + 14, buf + OFFSETBASE, len - OFFSETBASE, result, motorola_code))
 		return -1;
 
 
@@ -325,6 +325,7 @@ unsigned long Get32u(void * Long, bool motorola)
 
 
 
+
 bool ProcessExifDir(unsigned char * DirStart, unsigned char * OffsetBase, unsigned ExifLength,
 	image_data * const m_exifinfo, bool motorola)
 {
@@ -344,6 +345,7 @@ bool ProcessExifDir(unsigned char * DirStart, unsigned char * OffsetBase, unsign
 		int Tag = Get16u(DirEntry, motorola);
 		int Format = Get16u(DirEntry + 2, motorola);
 		int Components = Get32u(DirEntry + 4, motorola);
+		unsigned data = Get32u(DirEntry + 8, motorola);
 
 		if ((Format - 1) >= NUM_FORMATS) {
 			/* (-1) catches illegal zero case as unsigned underflows to positive large */
@@ -368,7 +370,7 @@ bool ProcessExifDir(unsigned char * DirStart, unsigned char * OffsetBase, unsign
 			ValuePtr = DirEntry + 8;
 		}
 
-
+		unsigned gps_sub_ifd_offset;
 		/* Extract useful components of tag */
 		switch (Tag) {
 
@@ -395,8 +397,8 @@ bool ProcessExifDir(unsigned char * DirStart, unsigned char * OffsetBase, unsign
 
 		case TAG_GPS_INFO:
 
-			//getSubTag(ValuePtr, OffsetBase, ExifLength, m_exifinfo, LastExifRefdP, motorola);
-			//TODO
+			gps_sub_ifd_offset = OFFSETBASE + data;
+			getGPSData(ValuePtr, OffsetBase, ExifLength, m_exifinfo, gps_sub_ifd_offset, motorola);
 			break;
 
 		case TAG_EXPOSURETIME:
@@ -497,13 +499,116 @@ double ConvertAnyFormat(void * ValuePtr, int Format, bool motorola)
 	return Value;
 }
 
+void getGPSData(unsigned char* value_ptr, unsigned char* offset_base, unsigned exif_length, image_data* const imdata, unsigned gps_sub_ifd_offset, bool motorola)
+{
+	u_char* buf = offset_base - OFFSETBASE;
+
+	unsigned offs = gps_sub_ifd_offset;
+	int num_entries = Get16u(buf + offs, motorola);
+	if (offs + 6 + 12 * num_entries > exif_length) return;
+	offs += 2;
+	while (--num_entries >= 0) {
+		
+		unsigned char * ValuePtr;
+		unsigned char * DirEntry = buf+offs;
+		int Tag = Get16u(DirEntry, motorola);
+		int Format = Get16u(DirEntry + 2, motorola);
+		int Components = Get32u(DirEntry + 4, motorola);
+		unsigned data = Get32u(DirEntry + 8, motorola);
+		
+
+		switch (Tag) {
+		case 1:
+			// GPS north or south
+			imdata->GeoLocation.LatComponents.direction = *(buf + offs + 8);
+			if (imdata->GeoLocation.LatComponents.direction == 0) {
+				imdata->GeoLocation.LatComponents.direction = '?';
+			}
+			if ('S' == imdata->GeoLocation.LatComponents.direction) {
+				imdata->GeoLocation.Latitude = -imdata->GeoLocation.Latitude;
+			}
+			break;
+
+		case 2:
+			// GPS latitude
+			if ((Format == 5 || Format == 10) && Components == 3) {
+				imdata->GeoLocation.LatComponents.degrees = ConvertAnyFormat(
+					buf + data + OFFSETBASE,Format, motorola);
+				imdata->GeoLocation.LatComponents.minutes = ConvertAnyFormat(
+					buf + data + OFFSETBASE + 8,Format, motorola);
+				imdata->GeoLocation.LatComponents.seconds = ConvertAnyFormat(
+					buf + data + OFFSETBASE + 16,Format, motorola);
+				imdata->GeoLocation.Latitude =
+					imdata->GeoLocation.LatComponents.degrees +
+					imdata->GeoLocation.LatComponents.minutes / 60 +
+					imdata->GeoLocation.LatComponents.seconds / 3600;
+				if ('S' == imdata->GeoLocation.LatComponents.direction) {
+					imdata->GeoLocation.Latitude = -imdata->GeoLocation.Latitude;
+				}
+			}
+			break;
+
+		case 3:
+			// GPS east or west
+			imdata->GeoLocation.LonComponents.direction = *(buf + offs + 8);
+			if (imdata->GeoLocation.LonComponents.direction == 0) {
+				imdata->GeoLocation.LonComponents.direction = '?';
+			}
+			if ('W' == imdata->GeoLocation.LonComponents.direction) {
+				imdata->GeoLocation.Longitude = -imdata->GeoLocation.Longitude;
+			}
+			break;
+
+		case 4:
+			// GPS longitude
+			if ((Format == 5 || Format == 10) && Components == 3) {
+				imdata->GeoLocation.LonComponents.degrees = ConvertAnyFormat(
+					buf + data + OFFSETBASE,Format, motorola);
+				imdata->GeoLocation.LonComponents.minutes = ConvertAnyFormat(
+					buf + data + OFFSETBASE + 8, Format,motorola);
+				imdata->GeoLocation.LonComponents.seconds = ConvertAnyFormat(
+					buf + data + OFFSETBASE + 16,Format, motorola);
+				imdata->GeoLocation.Longitude =
+					imdata->GeoLocation.LonComponents.degrees +
+					imdata->GeoLocation.LonComponents.minutes / 60 +
+					imdata->GeoLocation.LonComponents.seconds / 3600;
+				if ('W' == imdata->GeoLocation.LonComponents.direction)
+					imdata->GeoLocation.Longitude = -imdata->GeoLocation.Longitude;
+			}
+			break;
+		case 5:
+			// GPS altitude reference (below or above sea level)
+			imdata->GeoLocation.AltitudeRef = *(buf + offs + 8);
+			if (1 == imdata->GeoLocation.AltitudeRef) {
+				imdata->GeoLocation.Altitude = -imdata->GeoLocation.Altitude;
+			}
+			break;
+
+		case 6:
+			// GPS altitude
+			if ((Format == 5 || Format == 10)) {
+				imdata->GeoLocation.Altitude = ConvertAnyFormat(
+					buf + data + OFFSETBASE,Format, motorola);
+				if (1 == imdata->GeoLocation.AltitudeRef) {
+					imdata->GeoLocation.Altitude = -imdata->GeoLocation.Altitude;
+				}
+			}
+			break;
+
+		
+
+		}
+		offs += 12;
+	}
+
+}
 
 
 // Test program:
 //--------------------------------------------------------------
 int _tmain(int argc, _TCHAR* argv[])
 {
-	LPCTSTR image = L"C:\\Users\\andre_000\\Documents\\Visual Studio 2017\\Projects\\EXIFO\\EXIFO\\image\\IMG_20170412_113708.jpg";
+	LPCTSTR image = L"C:\\Users\\andre\\Documents\\SO\\SO-Series\\Exinfo\\image\\IMG_20170412_113708.jpg";
 	int toRet = getImageInfo(image);
 
 	std::cout << "Press [Enter] to continue . . .";

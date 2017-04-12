@@ -4,7 +4,7 @@
 #include "windows.h"
 #include <iostream>
 #include "psapi.h"
-
+using namespace std;
 
 
 unsigned long usage;
@@ -13,7 +13,7 @@ unsigned long usage;
 // For Test Purposes
 void show_modules(HANDLE process) {
 
-	unsigned char *p = NULL;
+	unsigned char *p = nullptr;
 	MEMORY_BASIC_INFORMATION info;
 	
 
@@ -115,36 +115,27 @@ size_t get_region(DWORD id)
 	for (; aux == sizeof(memory_info); currAddress += memory_info.RegionSize) {
 
 		currentSize = memory_info.RegionSize;
-
-
-		if (currAddress != memory_info.AllocationBase && currAddress == memory_info.BaseAddress) {
-			currentSize += memory_info.RegionSize;
-
-		}
-
-		else {
 			if (currentSize > maxSize) {
 				maxSize = currentSize;
-			}
 		}
 
-		currentSize += memory_info.RegionSize;
 
 		aux = VirtualQueryEx(h, currAddress, &memory_info, sizeof(memory_info));
 		
 	}
+	
 	TCHAR Buffer[_MAX_FNAME];
 	
 	GetModuleBaseName(h, GetModuleHandle(nullptr), Buffer, _MAX_FNAME);
 	
-	std::wstring arr_w(Buffer);
-	std::string arr_s(arr_w.begin(), arr_w.end());
+	wstring arr_w(Buffer);
+	string arr_s(arr_w.begin(), arr_w.end());
 	
-	std::cout << "The base address is : " << base << std::endl;
+	cout << "The base address is : " << base << endl;
 	
-	std::cout << "The process name is : " << arr_s.c_str() << std::endl;
+	cout << "The process name is : " << arr_s.c_str() << endl;
 	
-	std::cout << "Max Region Size is " << maxSize << " Bytes"<<std::endl;
+	cout << "Max Region Size is " << maxSize << " Bytes"<< endl;
 
 	return maxSize;
 }
@@ -164,8 +155,8 @@ int main(int argc, char* argv[])
 	get_region(id);
 
 	
-	std::cout << "Press [Enter] to continue . . .";
-	std::cin.get();
+	cout << "Press [Enter] to continue . . .";
+	cin.get();
 
 	return 0;
 }

@@ -9,7 +9,7 @@
 #include "Winsock.h"
 
 
-namespace TestLibrary
+namespace exifo_pri_library
 {
 
 	// auxiliary method to convert the file access mode to file mapping access
@@ -43,13 +43,17 @@ namespace TestLibrary
 	//   the function returns TRUE if the mapping creation succeeded, FALSE if an error ocurrs.
 	//   In that case the error state is filled
 	//---------------------------------------------------------------------
-	BOOL Test::mapFile(LPCTSTR fileName, int access, int mode, LPCTSTR name, SIZE_T size, PFILEMAP fm) {
+	BOOL mapFile(LPCSTR fileName, int access, int mode, LPCSTR name, SIZE_T size, PFILEMAP fm, BOOL isUnicode) {
 		HANDLE fh = INVALID_HANDLE_VALUE;
 		HANDLE mh = nullptr;
 		LPVOID mapAddress = nullptr;
 
+
 		if (fileName != nullptr) {
-			fh = CreateFileW(fileName, access, 0, nullptr, mode, FILE_ATTRIBUTE_NORMAL, nullptr);
+			if (!isUnicode)
+				fh = CreateFileA(fileName, access, 0, nullptr, mode, FILE_ATTRIBUTE_NORMAL, nullptr);
+			else
+				fh = CreateFileW(LPCWSTR(fileName), access, 0, nullptr, mode, FILE_ATTRIBUTE_NORMAL, nullptr);
 			if (fh == INVALID_HANDLE_VALUE) goto error;
 			if (size == 0) {
 				LARGE_INTEGER fileSize;
@@ -59,7 +63,9 @@ namespace TestLibrary
 		}
 		LARGE_INTEGER aux;
 		aux.QuadPart = size;
-		mh = CreateFileMapping(fh, nullptr, fileToMapAccess(access), aux.HighPart, aux.LowPart, name);
+		if (!isUnicode)
+			mh = CreateFileMappingA(fh, nullptr, fileToMapAccess(access), aux.HighPart, aux.LowPart, name);
+		else mh = CreateFileMappingW(fh, nullptr, fileToMapAccess(access), aux.HighPart, aux.LowPart, reinterpret_cast<LPCWSTR>(name));
 		if (mh == nullptr) goto error;
 
 
@@ -84,13 +90,13 @@ namespace TestLibrary
 	//---------------------------------------------------------------------------
 	// Destroy the mapping resources (mapped region and the associated section object)
 	//------------------------------------------------------------------------------
-	VOID unmapFile(PFILEMAP fm) {
-		UnmapViewOfFile(fm->baseAddress);
-		CloseHandle(fm->mapHandle);
+	VOID unmapFile(FILEMAP fm) {
+		UnmapViewOfFile(fm.baseAddress);
+		CloseHandle(fm.mapHandle);
 	}
 
 
-	void Test::clear(image_data* data)
+	void clear(image_data* data)
 	{
 		data->Make = "";
 		data->Model = "";
@@ -124,12 +130,16 @@ namespace TestLibrary
 
 	}
 
-	void Test::getImageInfo(LPCTSTR image)
+	void getImageInfo(TCHAR* image)
 	{
 		int res;
 		FILEMAP mapDesc;
 
-		if (!(res = Test::mapFile(image, GENERIC_READ, OPEN_EXISTING, nullptr, 0, &mapDesc)))
+		bool isUnicode;
+		if (sizeof(*image) == sizeof(char))isUnicode = false;
+		else if (sizeof(*image) == sizeof(wchar_t))isUnicode = true;
+
+		if (!(res = mapFile(reinterpret_cast<LPSTR>(image), GENERIC_READ, OPEN_EXISTING, nullptr, 0, &mapDesc, isUnicode)))
 		{
 			//_tprintf(_T("Error %d mapping file\n"), res);
 			throw std::invalid_argument("Error: mapping file\n");
@@ -169,12 +179,12 @@ namespace TestLibrary
 		for (offs = 0; offs < len - 1; offs++)
 			if (buf[offs] == 0xFF && buf[offs + 1] == 0xE1) break;
 		if (offs + 4 > len)
-			throw std::invalid_argument("Error: unknown\n");
+			throw std::invalid_argument("Error: Invalid Header\n");
 		offs += 2;
-		auto section_length = Test::Get16m(buf + offs);
+		auto section_length = Get16m(buf + offs);
 
 		if (offs + section_length > len || section_length < 16)
-			throw std::invalid_argument("Error: unknown\n");
+			throw std::invalid_argument("Error: Invalid Header length\n");
 		offs += 2;
 		//get curr length and address
 		buf = buf + offs;
@@ -182,11 +192,11 @@ namespace TestLibrary
 
 		offs = 0;       // current offset into buffer
 		if (!buf || len < 6)
-			throw std::invalid_argument("Error: unknown\n");;
+			throw std::invalid_argument("Error: Incorrect Offset\n");;
 
 		//'buf' start of the EXIF TIFF, which must be the bytes "Exif\0\0".
 		if (!std::equal(buf, buf + 6, "Exif\0\0"))
-			throw std::invalid_argument("Error: unknown\n");;
+			throw std::invalid_argument("Error: No TIFF found\n");;
 		offs += 6;
 
 		// Now parsing the TIFF header. The first two bytes are either "II" or
@@ -202,7 +212,7 @@ namespace TestLibrary
 		//  8 bytes
 
 		if (offs + 8 > len)
-			throw std::invalid_argument("Error: unknown\n");;
+			throw std::invalid_argument("Error: Invalid TIFF Header\n");;
 		bool motorola_code;
 
 		if (memcmp(buf + offs, "II", 2) == 0)
@@ -219,20 +229,20 @@ namespace TestLibrary
 			}
 			else
 			{
-				throw std::invalid_argument("Error: unknown\n");;
+				throw std::invalid_argument("Error: Invalid Driver\n");;
 			}
 		}
 
 		offs += 2;
 
-		if (Test::Get16u(buf + offs, motorola_code) != 0x2a)
+		if (Get16u(buf + offs, motorola_code) != 0x2a)
 		{
-			throw std::invalid_argument("Error: unknown\n");;
+			throw std::invalid_argument("Error: Invalid TIFF end\n");;
 		}
 
 		offs += 2;
 
-		int FirstOffset = Test::Get32u(buf + offs, motorola_code);
+		int FirstOffset = Get32u(buf + offs, motorola_code);
 		if (FirstOffset < 8 || FirstOffset > 16) {
 			// used to ensure this was set to 8 (website indicated its 8)
 			// but PENTAX Optio 230 has it set differently, and uses it as offset.
@@ -242,10 +252,10 @@ namespace TestLibrary
 
 
 		result = static_cast<image_data*>(malloc(sizeof(image_data)));
-		Test::clear(result);
+		clear(result);
 
 		/* First directory starts 16 unsigned chars in.  Offsets start at 8 unsigned chars in. */
-		if (!Test::ProcessExifDir(buf + 14, buf + OFFSETBASE, len - OFFSETBASE, result, motorola_code))
+		if (!ProcessExifDir(buf + 14, buf + OFFSETBASE, len - OFFSETBASE, result, motorola_code))
 			throw std::invalid_argument("Error: invalid offsets\n");;
 
 
@@ -283,7 +293,7 @@ namespace TestLibrary
 		free(result);
 
 
-		unmapFile(&mapDesc);
+		unmapFile(mapDesc);
 	}
 
 
@@ -292,7 +302,7 @@ namespace TestLibrary
 	//--------------------------------------------------------------------------
 	// Get 16 bits motorola order (always) for jpeg header stuff.
 	//--------------------------------------------------------------------------
-	int Test::Get16m(void * Short)
+	int Get16m(void * Short)
 	{
 		return (static_cast<unsigned char *>(Short)[0] << 8) | static_cast<unsigned char *>(Short)[1];
 	}
@@ -300,7 +310,7 @@ namespace TestLibrary
 	/*--------------------------------------------------------------------------
 	Convert a 16 bit unsigned value from file's native unsigned char order
 	--------------------------------------------------------------------------*/
-	int Test::Get16u(void * Short, bool MotorolaOrder)
+	int Get16u(void * Short, bool MotorolaOrder)
 	{
 		if (MotorolaOrder) {
 			return (static_cast<unsigned char *>(Short)[0] << 8) | static_cast<unsigned char *>(Short)[1];
@@ -312,7 +322,7 @@ namespace TestLibrary
 	/*--------------------------------------------------------------------------
 	Convert a 32 bit signed value from file's native unsigned char order
 	--------------------------------------------------------------------------*/
-	long Test::Get32s(void * Long, bool MotorolaOrder)
+	long Get32s(void * Long, bool MotorolaOrder)
 	{
 		if (MotorolaOrder) {
 			return  (static_cast<char *>(Long)[0] << 24) | (static_cast<unsigned char *>(Long)[1] << 16)
@@ -325,7 +335,7 @@ namespace TestLibrary
 	/*--------------------------------------------------------------------------
 	Convert a 32 bit unsigned value from file's native unsigned char order
 	--------------------------------------------------------------------------*/
-	unsigned long Test::Get32u(void * Long, bool motorola)
+	unsigned long Get32u(void * Long, bool motorola)
 	{
 		return static_cast<unsigned long>(Get32s(Long, motorola)) & 0xffffffff;
 	}
@@ -333,7 +343,7 @@ namespace TestLibrary
 
 
 
-	bool Test::ProcessExifDir(unsigned char * DirStart, unsigned char * OffsetBase, unsigned ExifLength,
+	bool ProcessExifDir(unsigned char * DirStart, unsigned char * OffsetBase, unsigned ExifLength,
 		image_data * const m_exifinfo, bool motorola)
 	{
 		int a;
@@ -399,13 +409,13 @@ namespace TestLibrary
 				/* Simplest way of expressing aperture, so I trust it the most.
 				(overwrite previously computd value if there is one)
 				*/
-				m_exifinfo->FNumber = static_cast<float>(Test::ConvertAnyFormat(ValuePtr, Format, motorola));
+				m_exifinfo->FNumber = static_cast<float>(ConvertAnyFormat(ValuePtr, Format, motorola));
 				break;
 
 			case TAG_GPS_INFO:
 
-				gps_sub_ifd_offset = OFFSETBASE + data;
-				Test::getGPSData(ValuePtr, OffsetBase, ExifLength, m_exifinfo, gps_sub_ifd_offset, motorola);
+				gps_sub_ifd_offset = data;
+				getGPSData(ValuePtr, OffsetBase, ExifLength, m_exifinfo, gps_sub_ifd_offset, motorola);
 				break;
 
 			case TAG_EXPOSURETIME:
@@ -414,7 +424,7 @@ namespace TestLibrary
 				if there is one)
 				*/
 				m_exifinfo->ExposureTime =
-					static_cast<float>(Test::ConvertAnyFormat(ValuePtr, Format, motorola));
+					static_cast<float>(ConvertAnyFormat(ValuePtr, Format, motorola));
 				break;
 
 			case TAG_SHUTTERSPEED:
@@ -423,35 +433,35 @@ namespace TestLibrary
 				from somewhere else.
 				*/
 				if (m_exifinfo->ExposureTime == 0) {
-					m_exifinfo->ExposureTime = static_cast<float>(1 / exp(Test::ConvertAnyFormat(ValuePtr, Format, motorola) * log(2)));
+					m_exifinfo->ExposureTime = static_cast<float>(1 / exp(ConvertAnyFormat(ValuePtr, Format, motorola) * log(2)));
 				}
 				break;
 
 
 			case TAG_EXIF_IMAGELENGTH:
-				a = static_cast<int>(Test::ConvertAnyFormat(ValuePtr, Format, motorola));
+				a = static_cast<int>(ConvertAnyFormat(ValuePtr, Format, motorola));
 				m_exifinfo->ImageHeight = a;
 				break;
 			case TAG_EXIF_IMAGEWIDTH:
 				/* Use largest of height and width to deal with images
 				that have been rotated to portrait format.
 				*/
-				a = static_cast<int>(Test::ConvertAnyFormat(ValuePtr, Format, motorola));
+				a = static_cast<int>(ConvertAnyFormat(ValuePtr, Format, motorola));
 				m_exifinfo->ImageWidth = a;
 				break;
 
 
 			case TAG_EXPOSURE_BIAS:
-				m_exifinfo->ExposureBiasValue = static_cast<float>(Test::ConvertAnyFormat(ValuePtr, Format, motorola));
+				m_exifinfo->ExposureBiasValue = static_cast<float>(ConvertAnyFormat(ValuePtr, Format, motorola));
 				break;
 
 
 			case TAG_EXPOSURE_PROGRAM:
-				m_exifinfo->ExposureProgram = static_cast<int>(Test::ConvertAnyFormat(ValuePtr, Format, motorola));
+				m_exifinfo->ExposureProgram = static_cast<int>(ConvertAnyFormat(ValuePtr, Format, motorola));
 				break;
 
 			case TAG_ISO_EQUIVALENT:
-				m_exifinfo->ISOSpeedRatings = static_cast<int>(Test::ConvertAnyFormat(ValuePtr, Format, motorola));
+				m_exifinfo->ISOSpeedRatings = static_cast<int>(ConvertAnyFormat(ValuePtr, Format, motorola));
 				if (m_exifinfo->ISOSpeedRatings < 50) m_exifinfo->ISOSpeedRatings *= 200;
 				break;
 
@@ -474,7 +484,7 @@ namespace TestLibrary
 
 
 
-	double Test::ConvertAnyFormat(void * ValuePtr, int Format, bool motorola)
+	double ConvertAnyFormat(void * ValuePtr, int Format, bool motorola)
 	{
 		double Value = 0;
 
@@ -506,9 +516,9 @@ namespace TestLibrary
 		return Value;
 	}
 
-	void Test::getGPSData(unsigned char* value_ptr, unsigned char* offset_base, unsigned exif_length, image_data* const imdata, unsigned gps_sub_ifd_offset, bool motorola)
+	void getGPSData(unsigned char* value_ptr, unsigned char* offset_base, unsigned exif_length, image_data* const imdata, unsigned gps_sub_ifd_offset, bool motorola)
 	{
-		u_char* buf = offset_base - OFFSETBASE;
+		u_char* buf = offset_base;
 
 		unsigned offs = gps_sub_ifd_offset;
 		int num_entries = Get16u(buf + offs, motorola);
@@ -540,11 +550,11 @@ namespace TestLibrary
 				// GPS latitude
 				if ((Format == 5 || Format == 10) && Components == 3) {
 					imdata->GeoLocation.LatComponents.degrees = ConvertAnyFormat(
-						buf + data + OFFSETBASE, Format, motorola);
+						buf + data, Format, motorola);
 					imdata->GeoLocation.LatComponents.minutes = ConvertAnyFormat(
-						buf + data + OFFSETBASE + 8, Format, motorola);
+						buf + data + 8, Format, motorola);
 					imdata->GeoLocation.LatComponents.seconds = ConvertAnyFormat(
-						buf + data + OFFSETBASE + 16, Format, motorola);
+						buf + data + 16, Format, motorola);
 					imdata->GeoLocation.Latitude =
 						imdata->GeoLocation.LatComponents.degrees +
 						imdata->GeoLocation.LatComponents.minutes / 60 +
@@ -570,11 +580,11 @@ namespace TestLibrary
 				// GPS longitude
 				if ((Format == 5 || Format == 10) && Components == 3) {
 					imdata->GeoLocation.LonComponents.degrees = ConvertAnyFormat(
-						buf + data + OFFSETBASE, Format, motorola);
+						buf + data, Format, motorola);
 					imdata->GeoLocation.LonComponents.minutes = ConvertAnyFormat(
-						buf + data + OFFSETBASE + 8, Format, motorola);
+						buf + data + 8, Format, motorola);
 					imdata->GeoLocation.LonComponents.seconds = ConvertAnyFormat(
-						buf + data + OFFSETBASE + 16, Format, motorola);
+						buf + data + 16, Format, motorola);
 					imdata->GeoLocation.Longitude =
 						imdata->GeoLocation.LonComponents.degrees +
 						imdata->GeoLocation.LonComponents.minutes / 60 +
@@ -595,7 +605,7 @@ namespace TestLibrary
 				// GPS altitude
 				if ((Format == 5 || Format == 10)) {
 					imdata->GeoLocation.Altitude = ConvertAnyFormat(
-						buf + data + OFFSETBASE, Format, motorola);
+						buf + data, Format, motorola);
 					if (1 == imdata->GeoLocation.AltitudeRef) {
 						imdata->GeoLocation.Altitude = -imdata->GeoLocation.Altitude;
 					}
@@ -613,9 +623,9 @@ namespace TestLibrary
 
 	// Test program:
 	//--------------------------------------------------------------
-	void Test::PrintExifTags(TCHAR* filename)
+	void TEST1_API Test::PrintExifTags(TCHAR* filename)
 	{
-		Test::getImageInfo(filename);
+		getImageInfo(filename);
 	}
 
 }

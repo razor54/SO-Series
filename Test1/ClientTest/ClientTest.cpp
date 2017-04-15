@@ -1,15 +1,20 @@
 // ClientTest.cpp : Defines the entry point for the console application.
 //
 
+
 #include "stdafx.h"
-#include "Header.h"
+
+#include "../Test1/Header.h"
 #include <iostream>
 
 
 int main()
 {
-	TCHAR* image = L"C:\\Users\\Leonardo Freire\\Desktop\\Faculdade\\2_Ano\\2_Semestre\\SO\\Series\\Serie1\\SO-Series\\Exinfo\\image\\bb-android.jpg";
-	TestLibrary::Test::PrintExifTags(image);
+	TCHAR* image = L"C:\\Users\\andre_000\\Documents\\SO\\so-series\\Exinfo\\image\\test1.jpg";
+	exifo_pri_library::Test::PrintExifTags(image);
+
+	std::cout << "Press [Enter] to continue . . .";
+	std::cin.get();
 
 	return 0;
 }

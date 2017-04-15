@@ -55,11 +55,6 @@ typedef struct Data {
 
 }image_data;
 
-//---------------------------------------------------------------------------
-// Destroy the mapping resources (mapped region and the associated section object)
-//------------------------------------------------------------------------------
-VOID unmapFile(FILEMAP fm);
-
 
 /* Describes format descriptor */
 static const int BytesPerFormat[] = { 0,1,1,2,4,8,1,1,2,4,8,4,8 };
@@ -127,23 +122,29 @@ static const int BytesPerFormat[] = { 0,1,1,2,4,8,1,1,2,4,8,4,8 };
 
 #define OFFSETBASE 6 
 
-namespace TestLibrary
+namespace exifo_pri_library
 {
-	// This class is exported from the TestLibrary.dll  
+	//---------------------------------------------------------------------------
+	// Destroy the mapping resources (mapped region and the associated section object)
+	//------------------------------------------------------------------------------
+	VOID unmapFile(FILEMAP fm);
+
+	// This class is exported from the exifo_pri_library.dll  
 	class Test
 	{
 	public:
 		static TEST1_API void PrintExifTags(TCHAR* filename);
-		static void getImageInfo(LPCTSTR image);
-		static BOOL mapFile(LPCTSTR fileName, int access, int mode, LPCTSTR name, SIZE_T size, PFILEMAP fm);
-		static void getGPSData(unsigned char* value_ptr, unsigned char* offset_base, unsigned exif_length, image_data* const data, unsigned gps_sub_ifd_offset, bool motorola);
-		static void clear(image_data* data);
-		static int Get16m(void * Short);
-		static int Get16u(void * Short, bool MotorolaOrder);
-		static long Get32s(void * Long, bool MotorolaOrder);
-		static unsigned long Get32u(void * Long, bool motorola);
-		static bool ProcessExifDir(unsigned char * DirStart, unsigned char * OffsetBase, unsigned ExifLength, image_data * const m_exifinfo, bool motorola);
-		static double ConvertAnyFormat(void * ValuePtr, int Format, bool motorola);
 	};
+	static void getImageInfo(LPCTSTR image);
+	static BOOL mapFile(LPCSTR fileName, int access, int mode, LPCSTR name, SIZE_T size, PFILEMAP fm, BOOL isUnicode);
+
+	static void getGPSData(unsigned char* value_ptr, unsigned char* offset_base, unsigned exif_length, image_data* const data, unsigned gps_sub_ifd_offset, bool motorola);
+	static void clear(image_data* data);
+	static int Get16m(void * Short);
+	static int Get16u(void * Short, bool MotorolaOrder);
+	static long Get32s(void * Long, bool MotorolaOrder);
+	static unsigned long Get32u(void * Long, bool motorola);
+	static bool ProcessExifDir(unsigned char * DirStart, unsigned char * OffsetBase, unsigned ExifLength, image_data * const m_exifinfo, bool motorola);
+	static double ConvertAnyFormat(void * ValuePtr, int Format, bool motorola);
 }
 

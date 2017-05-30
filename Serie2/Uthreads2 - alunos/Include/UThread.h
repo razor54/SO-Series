@@ -58,11 +58,14 @@ INT UtThreadState(HANDLE thread);
 UTHREAD_API
 VOID UtSwitchTo(HANDLE ThreadToRun);
 
-UTHREAD_API
-BOOL UtMultJoin(HANDLE handle[], int size);
+//UTHREAD_API
+//BOOL UtMultJoin(HANDLE handle[], int size);
+
+//UTHREAD_API
+//VOID ShowUtTick(HANDLE threadToRun, int count);
 
 UTHREAD_API
-VOID ShowUtTick(HANDLE threadToRun, int count);
+BOOL UtJoin(HANDLE hthread);
 
 //
 // Creates a user thread to run the specified function. The thread is placed

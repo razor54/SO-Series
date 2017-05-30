@@ -26,7 +26,7 @@
 // Test 1: N threads, each one printing its number M times //
 //															 //
 ///////////////////////////////////////////////////////////////
-
+/*
 ULONG Test1_Count;
 
 
@@ -79,5 +79,6 @@ int main () {
 	UtEnd();
 	return 0;
 }
+*/
 
 

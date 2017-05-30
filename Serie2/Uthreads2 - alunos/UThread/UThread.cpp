@@ -152,6 +152,7 @@ VOID Schedule () {
 //
 VOID UtInit() {
 	InitializeListHead(&ReadyQueue);
+	InitializeListHead(&AliveQueue);
 }
 
 //
@@ -219,6 +220,7 @@ VOID UtExit () {
 		PUTHREAD thread = CONTAINING_RECORD(tlink, UTHREAD, Link);
 		UtActivate(thread);
 	}
+	RemoveEntryList(&RunningThread->AliveLink);
 	InternalExit(RunningThread, ExtractNextReadyThread());
 	_ASSERTE(!"Not Supposed to be here!");
 }

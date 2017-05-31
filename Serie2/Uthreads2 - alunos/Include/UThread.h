@@ -58,8 +58,8 @@ INT UtThreadState(HANDLE thread);
 UTHREAD_API
 VOID UtSwitchTo(HANDLE ThreadToRun);
 
-//UTHREAD_API
-//BOOL UtMultJoin(HANDLE handle[], int size);
+UTHREAD_API
+BOOL UtMultJoin(HANDLE handle[], int size);
 
 //UTHREAD_API
 //VOID ShowUtTick(HANDLE threadToRun, int count);

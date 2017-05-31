@@ -288,6 +288,26 @@ BOOL UtAlive(HANDLE hthread) {
 	return FALSE;
 }
 
+BOOL UtMultJoin(HANDLE handle[], int size) {
+	BOOL finished = FALSE;
+	while (finished == FALSE) {
+		for (int i = 0; i < size; i++) {
+			// checks if one of the threads is the one currently running
+			if (UtSelf() == handle[i])
+				return FALSE;
+			// checks if one of the threads is not alive
+			if (!UtAlive(handle[i]))
+				return FALSE;
+			// changes curr thread state to blocked and next to running
+			PUTHREAD thread = PUTHREAD(handle[i]);
+			thread->ThreadState = BLOCKED;
+			thread = (PUTHREAD)handle[i + 1];
+			thread->ThreadState = RUNNING;
+		}
+	}
+	return finished;
+}
+
 // new functions
 BOOL UtJoin(HANDLE hthread) {
 	if (hthread == UtSelf()) return FALSE;

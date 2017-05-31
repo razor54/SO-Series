@@ -22,7 +22,7 @@
     <ProjectGuid>{4111D8D1-7501-489A-AD21-68701773EBD9}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>SimpleTest</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.14393.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.15063.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -152,6 +152,7 @@
     </ClCompile>
     <ClCompile Include="Test1Alive.cpp" />
     <ClCompile Include="TestMultJoin.cpp" />
+    <ClCompile Include="TestUtSwitchTo.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\USynch\USynch.vcxproj">

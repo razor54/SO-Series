@@ -335,6 +335,21 @@ INT UtThreadState(HANDLE thread) {
 }
 
 
+VOID UtSwitchTo(HANDLE ThreadToRun)
+{
+	PUTHREAD puthread = PUTHREAD(ThreadToRun);
+	
+	if (UtAlive(puthread) && puthread->ThreadState == READY)
+	{
+		RunningThread->ThreadState = READY;
+		puthread->ThreadState = RUNNING;
+		ContextSwitch(RunningThread, puthread);
+	}
+
+}
+
+
+
 //
 // Frees the resources associated with Thread..
 //

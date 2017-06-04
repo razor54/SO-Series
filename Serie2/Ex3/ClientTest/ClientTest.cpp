@@ -9,14 +9,14 @@
 #include <iostream>
 #include "../Test1/Header.h"
 
-
+using namespace std;
 // Struct to hold context to JPG_ProcessExifTags
 typedef struct
 {
 	PCTSTR filepath;
 	PCTSTR searchArgs;
-	PCHAR startDate;
-	PCHAR endDate;
+	PCTCH startDate;
+	PCTCH endDate;
 } JPG_CTX, *PJPG_CTX;
 
 // Callback to JPG_ProcessExifTags
@@ -27,20 +27,24 @@ BOOL ProcessExifTag(LPCVOID ctx, DWORD tag, LPCVOID value)
 	BOOL bRes = tagToFind == tag;
 	if (bRes)
 	{
-		PCHAR startDate = PJPG_CTX(ctx)->startDate;
-		PCHAR endDate = PJPG_CTX(ctx)->endDate;
+		PCTCH startDate = PJPG_CTX(ctx)->startDate;
+		PCTCH endDate = PJPG_CTX(ctx)->endDate;
 		PCTSTR filepath = PJPG_CTX(ctx)->filepath;
 
 		PCHAR tts = PCHAR(value);
 		
-		if (strcmp(tts, startDate) > 0 && strcmp(tts, endDate) < 0)
+		
+		wchar_t * vOut = new wchar_t[strlen(tts) + 1];
+		mbstowcs_s(NULL, vOut, strlen(tts) + 1, tts, strlen(tts));
+
+		if (wcscmp(vOut, startDate) > 0 && wcscmp(vOut, endDate) < 0)
 			printf("%ls\n", filepath);
 	}
 	return !bRes;
 }
 
 
-VOID SearchFileDir(PCTSTR path, PCTSTR searchArgs, LPVOID ctx, PCHAR startDate, PCHAR endDate)
+VOID SearchFileDir(PCTSTR path, PCTSTR searchArgs, LPVOID ctx, PCTCH startDate, PCTCH endDate)
 {
 	TCHAR buffer[MAX_PATH]; // auxiliary buffer
 							// the buffer is needed to define a match string that guarantees 
@@ -77,29 +81,31 @@ VOID SearchFileDir(PCTSTR path, PCTSTR searchArgs, LPVOID ctx, PCHAR startDate, 
 	FindClose(fileIt);
 }
 
+
+DWORD _tmain(DWORD argc, PTCHAR argv[])
+{
+	//36867 -- tag localDate
+
+	if (argc < 5)
+	{
+		_tprintf(_T("Use: %s <repository path> <tag exif> <start-date> <end-date>"), argv[0]);
+		exit(0);
+	}
+
+	SearchFileDir(argv[1], argv[2], NULL,argv[3],argv[4]);
+
+	std::cout << "Press [Enter] to continue . . .";
+	std::cin.get();
+
+	return 0;
+}
+
+
 /*
-DWORD _tmain(DWORD argc, PTCHAR argv[]) {
-//36867 -- tag localDate
-
-if (argc < 3) {
-_tprintf(_T("Use: %s <repository path> <tag exif>"), argv[0]);
-exit(0);
-}
-
-SearchFileDir(argv[1], argv[2], NULL);
-
-PRESS_TO_FINISH("");
-
-return 0;
-
-}
-*/
-
-
 DWORD _tmain()
 {
-	PCHAR ini = "2003:05:23 16:40:33";
-	PCHAR end = "2016:05:25 16:40:33";
+	PCTSTR ini = L"2003:05:23 16:40:33";
+	PCTSTR end = L"2010:05:25 16:40:33";
 
 	SearchFileDir(L"test-images/", L"36867", nullptr, ini, end);
 	
@@ -108,4 +114,4 @@ DWORD _tmain()
 
 	return 0;
 }
-
+*/

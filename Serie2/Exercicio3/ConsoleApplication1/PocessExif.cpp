@@ -2,25 +2,28 @@
 //
 
 #include "stdafx.h"
-#include <iostream>
 #include "ExifProcess.h"
 #include <tchar.h>
 #include "windows.h"
 #include "Winsock.h"
 
+#include <iostream>
+
+using namespace std;
 
 namespace exifo_pri_library
 {
-
 	// auxiliary method to convert the file access mode to file mapping access
-	static DWORD fileToMapAccess(int fa) {
+	static DWORD fileToMapAccess(int fa)
+	{
 		int ma = ((fa & GENERIC_READ) != 0) ? PAGE_READONLY : 0;
 		if ((fa & GENERIC_WRITE) != 0) ma = PAGE_READWRITE;
 		return ma;
 	}
 
 	// auxiliary method to convert the file access mode to view  access
-	static DWORD mapToViewAccess(int fa) {
+	static DWORD mapToViewAccess(int fa)
+	{
 		int va = ((fa & GENERIC_READ) != 0) ? FILE_MAP_READ : 0;
 		if ((fa & GENERIC_WRITE) != 0) va |= FILE_MAP_WRITE;
 		return va;
@@ -43,20 +46,22 @@ namespace exifo_pri_library
 	//   the function returns TRUE if the mapping creation succeeded, FALSE if an error ocurrs.
 	//   In that case the error state is filled
 	//---------------------------------------------------------------------
-	BOOL mapFile(LPCSTR fileName, int access, int mode, LPCSTR name, SIZE_T size, PFILEMAP fm, BOOL isUnicode) {
-
+	BOOL mapFile(LPCSTR fileName, int access, int mode, LPCSTR name, SIZE_T size, PFILEMAP fm, BOOL isUnicode)
+	{
 		HANDLE fh = INVALID_HANDLE_VALUE;
 		HANDLE mh = nullptr;
 		LPVOID mapAddress = nullptr;
 
 
-		if (fileName != nullptr) {
+		if (fileName != nullptr)
+		{
 			if (!isUnicode)
 				fh = CreateFileA(fileName, access, 0, nullptr, mode, FILE_ATTRIBUTE_NORMAL, nullptr);
 			else
 				fh = CreateFileW(LPCWSTR(fileName), access, 0, nullptr, mode, FILE_ATTRIBUTE_NORMAL, nullptr);
 			if (fh == INVALID_HANDLE_VALUE) goto error;
-			if (size == 0) {
+			if (size == 0)
+			{
 				LARGE_INTEGER fileSize;
 				if (!GetFileSizeEx(fh, &fileSize)) goto error;
 				size = static_cast<SIZE_T>(fileSize.QuadPart);
@@ -91,13 +96,14 @@ namespace exifo_pri_library
 	//---------------------------------------------------------------------------
 	// Destroy the mapping resources (mapped region and the associated section object)
 	//------------------------------------------------------------------------------
-	VOID unmapFile(FILEMAP fm) {
+	VOID unmapFile(FILEMAP fm)
+	{
 		UnmapViewOfFile(fm.baseAddress);
 		CloseHandle(fm.mapHandle);
 	}
 
 
-	BOOL getImageInfo(TCHAR* image,char* ini, char* end)
+	VOID getImageInfo(TCHAR* image, Test::PROCESS_EXIF_TAG processor, LPCVOID ctx)
 	{
 		int res;
 		FILEMAP mapDesc;
@@ -107,20 +113,29 @@ namespace exifo_pri_library
 		else if (sizeof(*image) == sizeof(wchar_t))isUnicode = true;
 
 		if (!(res = mapFile(reinterpret_cast<LPSTR>(image), GENERIC_READ, OPEN_EXISTING, nullptr, 0, &mapDesc, isUnicode)))
-			return FALSE;
-		
+		{
+			//_tprintf(_T("Error %d mapping file\n"), res);
+			throw invalid_argument("Error: mapping file\n");
+		}
+
+
 		auto len = mapDesc.size;
 		auto buf = mapDesc.baseAddress;
 
 
 		// Normally, we should able to find the JPEG end marker 0xFFD9 at the end
-		while (len > 2) {
-			if (buf[len - 1] == 0 || buf[len - 1] == 0xFF) 
+		while (len > 2)
+		{
+			if (buf[len - 1] == 0 || buf[len - 1] == 0xFF)
+			{
 				len--;
-			
-			else {
-				if (buf[len - 1] != 0xD9 || buf[len - 2] != 0xFF) 
-					return FALSE;
+			}
+			else
+			{
+				if (buf[len - 1] != 0xD9 || buf[len - 2] != 0xFF)
+				{
+					throw invalid_argument("Error: couldn't find image\n");
+				}
 				break;
 			}
 		}
@@ -136,28 +151,28 @@ namespace exifo_pri_library
 		//   4 bytes: Offset to first IFD
 		// =========
 		//  16 bytes
-		unsigned offs = 0;  // current offset into buffer
+		unsigned offs = 0; // current offset into buffer
 		for (offs = 0; offs < len - 1; offs++)
 			if (buf[offs] == 0xFF && buf[offs + 1] == 0xE1) break;
 		if (offs + 4 > len)
-			return FALSE;
+			throw invalid_argument("Error: Invalid Header\n");
 		offs += 2;
 		auto section_length = Get16m(buf + offs);
 
 		if (offs + section_length > len || section_length < 16)
-			return FALSE;
+			throw invalid_argument("Error: Invalid Header length\n");
 		offs += 2;
 		//get curr length and address
 		buf = buf + offs;
 		len = len - offs;
 
-		offs = 0;       // current offset into buffer
+		offs = 0; // current offset into buffer
 		if (!buf || len < 6)
-			return FALSE;
+			throw invalid_argument("Error: Incorrect Offset\n");;
 
 		//'buf' start of the EXIF TIFF, which must be the bytes "Exif\0\0".
-		if (!std::equal(buf, buf + 6, "Exif\0\0"))
-			return FALSE;
+		if (!equal(buf, buf + 6, "Exif\0\0"))
+			throw invalid_argument("Error: No TIFF found\n");;
 		offs += 6;
 
 		// Now parsing the TIFF header. The first two bytes are either "II" or
@@ -173,127 +188,140 @@ namespace exifo_pri_library
 		//  8 bytes
 
 		if (offs + 8 > len)
-			return FALSE;
+			throw invalid_argument("Error: Invalid TIFF Header\n");;
 		bool motorola_code;
 
 		if (memcmp(buf + offs, "II", 2) == 0)
+		{
+			cout << ("Intel driver") << endl;
 			motorola_code = false;
+		}
 		else
 		{
 			if (memcmp(buf + offs, "MM", 2) == 0)
+			{
+				cout << "MOTO driver" << endl;
 				motorola_code = true;
+			}
 			else
-				return FALSE;
+			{
+				throw invalid_argument("Error: Invalid Driver\n");;
+			}
 		}
 
 		offs += 2;
 
 		if (Get16u(buf + offs, motorola_code) != 0x2a)
-			return FALSE;
+		{
+			throw invalid_argument("Error: Invalid TIFF end\n");;
+		}
 
 		offs += 2;
 
 		int FirstOffset = Get32u(buf + offs, motorola_code);
-		if (FirstOffset < 8 || FirstOffset > 16) 
-			return FALSE;
-		
-		
+		if (FirstOffset < 8 || FirstOffset > 16)
+		{
+			// used to ensure this was set to 8 (website indicated its 8)
+			// but PENTAX Optio 230 has it set differently, and uses it as offset.
+			std::cout << "Suspicious offset of first IFD value" << std::endl;
+			throw std::invalid_argument("Error: suspicious offset of first IFD value\n");
+		}
+
+
 		/* First directory starts 16 unsigned chars in.  Offsets start at 8 unsigned chars in. */
-		if (!ProcessExifDir(buf + 14, buf + OFFSETBASE, len - OFFSETBASE, motorola_code,ini,end))
-			return FALSE;
-
-
+		ProcessExifDir(buf + 14, buf + OFFSETBASE, len - OFFSETBASE, motorola_code, processor, ctx);
 
 		unmapFile(mapDesc);
 	}
 
 
-
-
 	//--------------------------------------------------------------------------
 	// Get 16 bits motorola order (always) for jpeg header stuff.
 	//--------------------------------------------------------------------------
-	int Get16m(void * Short)
+	int Get16m(void* Short)
 	{
 		return (static_cast<unsigned char *>(Short)[0] << 8) | static_cast<unsigned char *>(Short)[1];
 	}
+
 	////////////////////////////////////////////////////////////////////////////////
 	/*--------------------------------------------------------------------------
 	Convert a 16 bit unsigned value from file's native unsigned char order
 	--------------------------------------------------------------------------*/
-	int Get16u(void * Short, bool MotorolaOrder)
+	int Get16u(void* Short, bool MotorolaOrder)
 	{
-		if (MotorolaOrder) {
+		if (MotorolaOrder)
+		{
 			return (static_cast<unsigned char *>(Short)[0] << 8) | static_cast<unsigned char *>(Short)[1];
 		}
 		return (static_cast<unsigned char *>(Short)[1] << 8) | static_cast<unsigned char *>(Short)[0];
-
 	}
+
 	////////////////////////////////////////////////////////////////////////////////
 	/*--------------------------------------------------------------------------
 	Convert a 32 bit signed value from file's native unsigned char order
 	--------------------------------------------------------------------------*/
-	long Get32s(void * Long, bool MotorolaOrder)
+	long Get32s(void* Long, bool MotorolaOrder)
 	{
-		if (MotorolaOrder) {
-			return  (static_cast<char *>(Long)[0] << 24) | (static_cast<unsigned char *>(Long)[1] << 16)
+		if (MotorolaOrder)
+		{
+			return (static_cast<char *>(Long)[0] << 24) | (static_cast<unsigned char *>(Long)[1] << 16)
 				| (static_cast<unsigned char *>(Long)[2] << 8) | (static_cast<unsigned char *>(Long)[3] << 0);
 		}
-		return  (static_cast<char *>(Long)[3] << 24) | (static_cast<unsigned char *>(Long)[2] << 16)
+		return (static_cast<char *>(Long)[3] << 24) | (static_cast<unsigned char *>(Long)[2] << 16)
 			| (static_cast<unsigned char *>(Long)[1] << 8) | (static_cast<unsigned char *>(Long)[0] << 0);
 	}
+
 	////////////////////////////////////////////////////////////////////////////////
 	/*--------------------------------------------------------------------------
 	Convert a 32 bit unsigned value from file's native unsigned char order
 	--------------------------------------------------------------------------*/
-	unsigned long Get32u(void * Long, bool motorola)
+	unsigned long Get32u(void* Long, bool motorola)
 	{
 		return static_cast<unsigned long>(Get32s(Long, motorola)) & 0xffffffff;
 	}
 
 
-
-
-	bool ProcessExifDir(unsigned char * DirStart, unsigned char * OffsetBase, unsigned ExifLength,
-		 bool motorola, char* ini, char* end)
+	VOID ProcessExifDir(unsigned char* DirStart, unsigned char* OffsetBase, unsigned ExifLength,
+	                    bool motorola, Test::PROCESS_EXIF_TAG processor, LPCVOID ctx)
 	{
-		int a;
-
 		int NumDirEntries = Get16u(DirStart, motorola);
 
-		if ((DirStart + 2 + NumDirEntries * 12) > (OffsetBase + ExifLength)) 
-			return false;
-		
+		if ((DirStart + 2 + NumDirEntries * 12) > (OffsetBase + ExifLength))
+			cout << "Illegally sized directory" << std::endl;
 
-		for (int de = 0; de < NumDirEntries; de++) {
-			unsigned char * ValuePtr;
-			unsigned char * DirEntry = DirStart + 2 + 12 * de;
+
+		for (int de = 0; de < NumDirEntries; de++)
+		{
+			unsigned char* ValuePtr;
+			unsigned char* DirEntry = DirStart + 2 + 12 * de;
 
 			int Tag = Get16u(DirEntry, motorola);
 			int Format = Get16u(DirEntry + 2, motorola);
 			int Components = Get32u(DirEntry + 4, motorola);
 			unsigned data = Get32u(DirEntry + 8, motorola);
 
-			if ((Format - 1) >= NUM_FORMATS) 
-				return false;
-			
+			if ((Format - 1) >= NUM_FORMATS)
+				std::cout << "Illegal format code in EXIF dir" << std::endl;
+
 
 			int BytesCount = Components * BytesPerFormat[Format];
 
-			if (BytesCount > 4) {
+			if (BytesCount > 4)
+			{
 				unsigned OffsetVal = Get32u(DirEntry + 8, motorola);
 				/* If its bigger than 4 unsigned chars, the dir entry contains an offset.*/
-				if (OffsetVal + BytesCount > ExifLength) 
-					return false;
-				
+				if (OffsetVal + BytesCount > ExifLength)
+					std::cout << "Illegal pointer offset value in EXIF." << std::endl;
+
 				ValuePtr = OffsetBase + OffsetVal;
 			}
-			else {
+			else
+			{
 				/* 4 unsigned chars or less and value is in the dir entry itself */
 				ValuePtr = DirEntry + 8;
 			}
 
-			if (Tag == TAG_DATETIME_ORIGINAL) {
+			/*if (Tag == TAG_DATETIME_ORIGINAL) {
 
 				//TODO the comparing
 				char * date = reinterpret_cast<char*>(ValuePtr);
@@ -306,67 +334,70 @@ namespace exifo_pri_library
 
 				return true;
 
-			}
+			}*/
 
-			if (Tag == TAG_EXIF_OFFSET || Tag == TAG_INTEROP_OFFSET) {
+			if (!processor(ctx, Tag, ValuePtr))
+				return;
 
-				unsigned char * SubdirStart = OffsetBase + Get32u(ValuePtr, motorola);
+			if (Tag == TAG_EXIF_OFFSET || Tag == TAG_INTEROP_OFFSET)
+			{
+				unsigned char* SubdirStart = OffsetBase + Get32u(ValuePtr, motorola);
 				if (SubdirStart < OffsetBase ||
-					SubdirStart > OffsetBase + ExifLength) {
-					return false;
+					SubdirStart > OffsetBase + ExifLength)
+				{
+					return;
 				}
-				return ProcessExifDir(SubdirStart, OffsetBase, ExifLength, motorola,ini,end);
+				ProcessExifDir(SubdirStart, OffsetBase, ExifLength, motorola, processor, ctx);
 			}
 		}
-
-		return false;
 	}
 
 
-
-	double ConvertAnyFormat(void * ValuePtr, int Format, bool motorola)
+	double ConvertAnyFormat(void* ValuePtr, int Format, bool motorola)
 	{
 		double Value = 0;
 
-		switch (Format) {
-		case FMT_SBYTE:     Value = *static_cast<signed char *>(ValuePtr);  break;
-		case FMT_BYTE:      Value = *static_cast<unsigned char *>(ValuePtr);        break;
+		switch (Format)
+		{
+		case FMT_SBYTE: Value = *static_cast<signed char *>(ValuePtr);
+			break;
+		case FMT_BYTE: Value = *static_cast<unsigned char *>(ValuePtr);
+			break;
 
-		case FMT_USHORT:    Value = Get16u(ValuePtr, motorola);          break;
-		case FMT_ULONG:     Value = Get32u(ValuePtr, motorola);          break;
+		case FMT_USHORT: Value = Get16u(ValuePtr, motorola);
+			break;
+		case FMT_ULONG: Value = Get32u(ValuePtr, motorola);
+			break;
 
 		case FMT_URATIONAL:
 		case FMT_SRATIONAL:
-		{
-			int Num = Get32s(ValuePtr, motorola);
-			int Den = Get32s(4 + static_cast<char *>(ValuePtr), motorola);
-			if (Den == 0) {
-				Value = 0;
+			{
+				int Num = Get32s(ValuePtr, motorola);
+				int Den = Get32s(4 + static_cast<char *>(ValuePtr), motorola);
+				if (Den == 0)
+				{
+					Value = 0;
+				}
+				else
+				{
+					Value = static_cast<double>(Num) / Den;
+				}
+				break;
 			}
-			else {
-				Value = static_cast<double>(Num) / Den;
-			}
+
+		case FMT_SSHORT: Value = static_cast<signed short>(Get16u(ValuePtr, motorola));
 			break;
-		}
-
-		case FMT_SSHORT:    Value = static_cast<signed short>(Get16u(ValuePtr, motorola));  break;
-		case FMT_SLONG:     Value = Get32s(ValuePtr, motorola);                break;
-
+		case FMT_SLONG: Value = Get32s(ValuePtr, motorola);
+			break;
 		}
 		return Value;
 	}
 
-	
+
 	// Test program:
 	//--------------------------------------------------------------
-	void Test::PrintExifTags(TCHAR* filename, CHAR*ini, CHAR*end)
+	void Test::JPEG_ProcessExifTags(PTCHAR fileImage, PROCESS_EXIF_TAG processor, LPCVOID ctx)
 	{
-		std::wstring s = filename;
-
-		if (getImageInfo(filename, ini, end))
-			printf("%ls\n", filename);
-
+		getImageInfo(fileImage, processor, ctx);
 	}
-
-
 }

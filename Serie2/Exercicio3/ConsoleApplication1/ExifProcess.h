@@ -2,9 +2,7 @@
 
 #include <string>
 #include "stdafx.h"
-#include "targetver.h"
 #include "windows.h"
-#include <stdio.h>
 #include <tchar.h>
 
 #ifdef PROCESS_EXIF_EXPORTS  
@@ -60,9 +58,11 @@ namespace exifo_pri_library
 	class Test
 	{
 	public:
-		static PROCESS_EXIF_API void PrintExifTags(TCHAR* filename,CHAR*ini,CHAR*end);
+		
+		typedef BOOL(*PROCESS_EXIF_TAG)(LPCVOID ctx, DWORD tagNumber, LPCVOID value);
+		static VOID JPEG_ProcessExifTags(PTCHAR fileImage, PROCESS_EXIF_TAG processor, LPCVOID ctx);
 	};
-	static void getImageInfo(LPCTSTR image, CHAR* ini, CHAR* end);
+	
 	static BOOL mapFile(LPCSTR fileName, int access, int mode, LPCSTR name, SIZE_T size, PFILEMAP fm, BOOL isUnicode);
 
 	
@@ -70,7 +70,8 @@ namespace exifo_pri_library
 	static int Get16u(void * Short, bool MotorolaOrder);
 	static long Get32s(void * Long, bool MotorolaOrder);
 	static unsigned long Get32u(void * Long, bool motorola);
-	static bool ProcessExifDir(unsigned char * DirStart, unsigned char * OffsetBase, unsigned ExifLength, bool motorola,char* ini,char*end);
+	static VOID ProcessExifDir(unsigned char * DirStart, unsigned char * OffsetBase, unsigned ExifLength,
+		bool motorola, Test::PROCESS_EXIF_TAG processor, LPCVOID ctx);
 	static double ConvertAnyFormat(void * ValuePtr, int Format, bool motorola);
 }
 

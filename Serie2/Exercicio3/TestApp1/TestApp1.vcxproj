@@ -151,8 +151,8 @@
     <ClCompile Include="TestApp1.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\ConsoleApplication1\ConsoleApplication1.vcxproj">
-      <Project>{cf906cdc-1e4d-4505-bc8c-0fde5fa47537}</Project>
+    <ProjectReference Include="..\ExifProcess\ExifProcess.vcxproj">
+      <Project>{f06e1a63-af4f-4ba5-b161-1519fd5697ee}</Project>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

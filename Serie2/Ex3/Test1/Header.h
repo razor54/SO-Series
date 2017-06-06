@@ -60,7 +60,7 @@ namespace exifo_pri_library
 	public:
 
 		typedef BOOL(*PROCESS_EXIF_TAG)(LPCVOID ctx, DWORD tagNumber, LPCVOID value);
-		static  PROCESS_EXIF_API VOID JPEG_ProcessExifTags(PTCHAR fileImage, PROCESS_EXIF_TAG processor, LPCVOID ctx);
+		static  PROCESS_EXIF_API VOID JPEG_ProcessExifTags(TCHAR *fileImage, PROCESS_EXIF_TAG processor, LPCVOID ctx);
 	};
 
 	static BOOL mapFile(LPCSTR fileName, int access, int mode, LPCSTR name, SIZE_T size, PFILEMAP fm, BOOL isUnicode);

@@ -23,7 +23,7 @@
     <ProjectGuid>{B0A00291-3E1D-494C-9205-33F7F561AE4A}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>Test1</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.15063.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.14393.0</WindowsTargetPlatformVersion>
     <ProjectName>Exifo_Print</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />

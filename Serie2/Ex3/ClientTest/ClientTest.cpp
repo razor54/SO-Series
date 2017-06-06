@@ -8,6 +8,7 @@
 #include <assert.h>
 #include <iostream>
 #include "../Test1/Header.h"
+#include <list>
 
 using namespace std;
 // Struct to hold context to JPG_ProcessExifTags
@@ -44,6 +45,19 @@ BOOL ProcessExifTag(LPCVOID ctx, DWORD tag, LPCVOID value)
 }
 
 
+DWORD WINAPI re_routine(LPVOID param)
+{
+	PJPG_CTX ctx = PJPG_CTX(param);
+	PCTSTR filepath = ctx->filepath;
+
+	exifo_pri_library::Test::JPEG_ProcessExifTags(PTCHAR(filepath), ProcessExifTag, &ctx);
+	
+	delete ctx;
+	return 0;
+
+	
+}
+
 VOID SearchFileDir(PCTSTR path, PCTSTR searchArgs, LPVOID ctx, PCTCH startDate, PCTCH endDate)
 {
 	TCHAR buffer[MAX_PATH]; // auxiliary buffer
@@ -73,8 +87,11 @@ VOID SearchFileDir(PCTSTR path, PCTSTR searchArgs, LPVOID ctx, PCTCH startDate, 
 			// Process file archive
 			TCHAR filepath[MAX_PATH];
 			_stprintf_s(filepath, _T("%s%s"), path, fileData.cFileName);
-			JPG_CTX jpgCtx = { filepath, searchArgs,startDate,endDate };
-			exifo_pri_library::Test::JPEG_ProcessExifTags(filepath, ProcessExifTag, &jpgCtx);
+			PJPG_CTX jpgcts = new JPG_CTX{ filepath, searchArgs,startDate,endDate };
+			//JPG_CTX jpgCtx = { filepath, searchArgs,startDate,endDate };
+			//exifo_pri_library::Test::JPEG_ProcessExifTags(filepath, ProcessExifTag, &jpgCtx);
+			
+			QueueUserWorkItem(re_routine,jpgcts, WT_EXECUTEINIOTHREAD);
 		}
 	} while (FindNextFile(fileIt, &fileData) == TRUE);
 
@@ -96,7 +113,7 @@ DWORD _tmain(DWORD argc, PTCHAR argv[])
 
 	std::cout << "Press [Enter] to continue . . .";
 	std::cin.get();
-
+	
 	return 0;
 }
 

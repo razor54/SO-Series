@@ -103,7 +103,7 @@ namespace exifo_pri_library
 	}
 
 
-	VOID getImageInfo(TCHAR* image, Test::PROCESS_EXIF_TAG processor, LPCVOID ctx)
+	VOID getImageInfo(PTCHAR image, Test::PROCESS_EXIF_TAG processor, LPCVOID ctx)
 	{
 		int res;
 		FILEMAP mapDesc;
@@ -112,7 +112,7 @@ namespace exifo_pri_library
 		if (sizeof(*image) == sizeof(char))isUnicode = false;
 		else if (sizeof(*image) == sizeof(wchar_t))isUnicode = true;
 
-		if (!(res = mapFile(reinterpret_cast<LPSTR>(image), GENERIC_READ, OPEN_EXISTING, nullptr, 0, &mapDesc, isUnicode)))
+		if (!(res = mapFile(LPCSTR(image), GENERIC_READ, OPEN_EXISTING, nullptr, 0, &mapDesc, isUnicode)))
 		{
 			//_tprintf(_T("Error %d mapping file\n"), res);
 			throw invalid_argument("Error: mapping file\n");

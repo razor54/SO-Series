@@ -22,8 +22,8 @@ typedef struct
 } JPG_CTX, *PJPG_CTX;
 
 
-HANDLE mutex;
-DWORD counter;
+HANDLE doneWork;
+long counter;
 list<PCTSTR> files;
 list<PJPG_CTX> jpgContexts;
 
@@ -63,18 +63,16 @@ DWORD WINAPI workToDo(LPVOID param)
 	PJPG_CTX ctx = PJPG_CTX(param);
 	PCTSTR filepath = ctx->filepath;
 
-	// each thread has to wait for her time to act
-	WaitForSingleObject(mutex, INFINITE);
+	// saves contexts to a list to delete them later
+	jpgContexts.push_back(ctx);
 
 	exifo_pri_library::Test::JPEG_ProcessExifTags((TCHAR *)(filepath), ProcessExifTag, ctx);
 
 	// decrements the number of threads that still have work to do
-	counter--;
-	// releases mutex for another thread to own it
-	ReleaseMutex(mutex);
-
-	// saves contexts to a list to delete them later
-	jpgContexts.push_back(ctx);
+	//counter--;
+	InterlockedDecrement(&counter);
+	if (counter == 0)
+		SetEvent(doneWork);
 
 	return 0;
 
@@ -116,7 +114,8 @@ VOID SearchFileDir(PCTSTR path, PCTSTR searchArgs, LPVOID ctx, PCTCH startDate, 
 			
 			QueueUserWorkItem(workToDo, jpgctx, WT_EXECUTEDEFAULT);
 			// increments the number of threads that have work to do
-			counter++;
+			//counter++;
+			InterlockedIncrement(&counter);
 		}
 	} while (FindNextFile(fileIt, &fileData) == TRUE);
 
@@ -148,14 +147,15 @@ DWORD _tmain()
 {
 	PCTSTR ini = L"2003:05:23 16:40:33";
 	PCTSTR end = L"2017:05:25 16:40:33";
-	mutex = CreateMutex(NULL, FALSE, NULL);
+	doneWork = CreateEvent(NULL, FALSE, FALSE, NULL);
 
-	if (mutex == NULL)
-		printf("Error creating mutex.");
+	if (doneWork == NULL)
+		printf("Error creating event.");
 
 	SearchFileDir(L"test-images/", L"36867", nullptr, ini, end);
 
-	while (counter != 0);
+	/*while (counter != 0);*/
+	WaitForSingleObject(doneWork, INFINITE);
 	
 
 	for (list<PCTSTR>::iterator list_iter = files.begin(); list_iter != files.end(); list_iter++)

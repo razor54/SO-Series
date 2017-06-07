@@ -396,7 +396,7 @@ namespace exifo_pri_library
 
 	// Test program:
 	//--------------------------------------------------------------
-	void Test::JPEG_ProcessExifTags(PTCHAR fileImage, PROCESS_EXIF_TAG processor, LPCVOID ctx)
+	void Test::JPEG_ProcessExifTags(TCHAR *fileImage, PROCESS_EXIF_TAG processor, LPCVOID ctx)
 	{
 		getImageInfo(fileImage, processor, ctx);
 	}

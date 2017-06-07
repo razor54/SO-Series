@@ -9,6 +9,7 @@
 #include <iostream>
 #include "../Test1/Header.h"
 #include <list>
+#include "ClientTest.h"
 
 using namespace std;
 // Struct to hold context to JPG_ProcessExifTags
@@ -22,24 +23,18 @@ typedef struct
 
 
 HANDLE mutex;
+DWORD counter;
+list<PCTSTR> files;
+list<PJPG_CTX> jpgContexts;
 
 // Callback to JPG_ProcessExifTags
 BOOL ProcessExifTag(LPCVOID ctx, DWORD tag, LPCVOID value)
 {
-	mutex = CreateMutex(NULL, FALSE, NULL);
-
-	if (mutex == NULL)
-		printf("Error creating mutex.");
-
-	WaitForSingleObject(mutex, INFINITE);
-	// TODO add path to list
-	ReleaseMutex(mutex);
-
-
 	PJPG_CTX context = PJPG_CTX(ctx);
 	PCTSTR searchArgs = context->searchArgs;
 	DWORD tagToFind = _ttoi(searchArgs);
 	BOOL bRes = tagToFind == tag;
+
 	if (bRes)
 	{
 		PCTCH startDate = context->startDate;
@@ -47,36 +42,44 @@ BOOL ProcessExifTag(LPCVOID ctx, DWORD tag, LPCVOID value)
 		PCTSTR filepath = context->filepath;
 
 		PCHAR tts = PCHAR(value);
-		
-		
+
+
 		wchar_t * vOut = new wchar_t[strlen(tts) + 1];
 		mbstowcs_s(NULL, vOut, strlen(tts) + 1, tts, strlen(tts));
 
 		if (wcscmp(vOut, startDate) > 0 && wcscmp(vOut, endDate) < 0)
-			printf("%ls\n", filepath);
+		{
+			//printf("%ls\n", filepath);
+			// save filepath to a list to print later
+			files.push_back(filepath);
+		}
 	}
+
 	return !bRes;
 }
 
-
-DWORD WINAPI re_routine(LPVOID param)
+DWORD WINAPI workToDo(LPVOID param)
 {
 	PJPG_CTX ctx = PJPG_CTX(param);
 	PCTSTR filepath = ctx->filepath;
 
+	// each thread has to wait for her time to act
+	WaitForSingleObject(mutex, INFINITE);
+
 	exifo_pri_library::Test::JPEG_ProcessExifTags((TCHAR *)(filepath), ProcessExifTag, ctx);
-	
-	// deallocate
-	delete ctx->filepath;
+
+	// decrements the number of threads that still have work to do
+	counter--;
+	// releases mutex for another thread to own it
+	ReleaseMutex(mutex);
+
+	// saves contexts to a list to delete them later
+	jpgContexts.push_back(ctx);
+
 	return 0;
 
 	
 }
-
-typedef struct {
-	TCHAR filepath[MAX_PATH];
-	JPG_CTX ctx;
-} THREAD_ARGS;
 
 VOID SearchFileDir(PCTSTR path, PCTSTR searchArgs, LPVOID ctx, PCTCH startDate, PCTCH endDate)
 {
@@ -104,26 +107,16 @@ VOID SearchFileDir(PCTSTR path, PCTSTR searchArgs, LPVOID ctx, PCTCH startDate, 
 		}
 		else
 		{
-			/*THREAD_ARGS *args = (THREAD_ARGS *)malloc(sizeof(THREAD_ARGS));
-			_stprintf_s(args->filepath, _T("%s%s"), path, fileData.cFileName);
-			JPG_CTX ctx = { args->filepath, searchArgs };
-			args->ctx = ctx;
-
-			if (!QueueUserWorkItem(re_routine, args, WT_EXECUTEDEFAULT))
-				printf("Error queueing work");*/
-
-
 			// Process file archive
 			TCHAR filepath[MAX_PATH];
-			TCHAR* fileapth1 = new TCHAR[MAX_PATH];
+			TCHAR* filepath1 = new TCHAR[MAX_PATH];
 			_stprintf_s(filepath, _T("%s%s"), path, fileData.cFileName);
-			//PJPG_CTX jpgcts = new JPG_CTX{ filepath, searchArgs,startDate,endDate };
-			wcscpy(fileapth1, filepath);
-			PJPG_CTX jpgcts = new JPG_CTX{ fileapth1, searchArgs,startDate,endDate };
-			//JPG_CTX jpgCtx = { filepath, searchArgs,startDate,endDate };
-			//exifo_pri_library::Test::JPEG_ProcessExifTags(filepath, ProcessExifTag, &jpgCtx);
+			wcscpy(filepath1, filepath);
+			PJPG_CTX jpgctx = new JPG_CTX{ filepath1, searchArgs,startDate,endDate };
 			
-			QueueUserWorkItem(re_routine, jpgcts, WT_EXECUTEINIOTHREAD);
+			QueueUserWorkItem(workToDo, jpgctx, WT_EXECUTEDEFAULT);
+			// increments the number of threads that have work to do
+			counter++;
 		}
 	} while (FindNextFile(fileIt, &fileData) == TRUE);
 
@@ -154,13 +147,32 @@ VOID SearchFileDir(PCTSTR path, PCTSTR searchArgs, LPVOID ctx, PCTCH startDate, 
 DWORD _tmain()
 {
 	PCTSTR ini = L"2003:05:23 16:40:33";
-	PCTSTR end = L"2010:05:25 16:40:33";
+	PCTSTR end = L"2017:05:25 16:40:33";
+	mutex = CreateMutex(NULL, FALSE, NULL);
+
+	if (mutex == NULL)
+		printf("Error creating mutex.");
 
 	SearchFileDir(L"test-images/", L"36867", nullptr, ini, end);
+
+	while (counter != 0);
 	
-	Sleep(10);
-	cout << "Press [Enter] to continue . . .";
-	cin.get();
+
+	for (list<PCTSTR>::iterator list_iter = files.begin(); list_iter != files.end(); list_iter++)
+	{
+		printf("%ls\n", *list_iter);
+	}
+	
+	for (list<PJPG_CTX>::iterator list_iter = jpgContexts.begin(); list_iter != jpgContexts.end(); list_iter++)
+	{
+		PJPG_CTX ctx = *list_iter;
+		delete ctx->filepath;
+	}
+
+	
+
+	//cout << "Press [Enter] to continue . . .";
+	//cin.get();
 
 	return 0;
 }

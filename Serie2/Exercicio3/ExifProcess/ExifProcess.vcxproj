@@ -23,7 +23,7 @@
     <ProjectGuid>{F06E1A63-AF4F-4BA5-B161-1519FD5697EE}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>ExifProcess</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.15063.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.14393.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">

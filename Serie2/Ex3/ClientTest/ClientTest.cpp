@@ -112,10 +112,16 @@ VOID SearchFileDir(PCTSTR path, PCTSTR searchArgs, LPVOID ctx, PCTCH startDate, 
 			wcscpy(filepath1, filepath);
 			PJPG_CTX jpgctx = new JPG_CTX{ filepath1, searchArgs,startDate,endDate };
 			
-			QueueUserWorkItem(workToDo, jpgctx, WT_EXECUTEDEFAULT);
+
+			InterlockedIncrement(&counter);
+
+			if (counter <= 5)
+				QueueUserWorkItem(workToDo, jpgctx, WT_EXECUTEDEFAULT);
+			else
+				workToDo(jpgctx);
 			// increments the number of threads that have work to do
 			//counter++;
-			InterlockedIncrement(&counter);
+			//InterlockedIncrement(&counter);
 		}
 	} while (FindNextFile(fileIt, &fileData) == TRUE);
 

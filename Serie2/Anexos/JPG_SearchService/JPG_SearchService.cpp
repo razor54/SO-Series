@@ -158,9 +158,9 @@ PCHAR RetrieveAnswer(PJPG_SEARCH_SERVICE service, int answerIndex) {
 	// wait for answer
 	WaitForSingleObject(service->answerEvent, INFINITE);
 	PJPG_SEARCH_SERVICE_ANSWER answer = &buf->answers[answerIndex];
-	PCHAR  map_view_of_file = static_cast<PCHAR >(MapViewOfFile(answer->MapFile, FILE_MAP_READ, 0, 0, 0));
+	PCHAR  *  map_view_of_file = static_cast<PCHAR *>(MapViewOfFile(answer->MapFile, FILE_MAP_READ, 0, 0, 0));
 	
-	PCHAR response = map_view_of_file;
+	PCHAR response = map_view_of_file[0];
 	FreeAnswerSlot(service, answerIndex);
 
 	return response;
@@ -278,10 +278,21 @@ VOID JPG_SearchServiceProcess(PJPG_SEARCH_SERVICE service, PROCESS_ENTRY_FUNC pr
 			// Normal resquest; process request
 
 
-			HANDLE handle = HANDLE(processor(req->Repository, req->Filter));
-			
-			PCSTR  map1 = static_cast<PCSTR> (MapViewOfFile(handle, FILE_MAP_ALL_ACCESS, 0, 0, 0));
+			PCHAR * value = static_cast<PCHAR*>(processor(req->Repository, req->Filter));
 
+
+			// criaçao da regiao de meoria partilhada
+			HANDLE handle = CreateFileMapping(
+				INVALID_HANDLE_VALUE,    // not a file but a page
+				NULL,                    // default security
+				PAGE_READWRITE,          // read/write access
+				0,                       // maximum object size (high-order DWORD)
+				sizeof(value),             // maximum object size (low-order DWORD)
+				NULL);
+
+			PCHAR *  map1 = static_cast<PCHAR*> (MapViewOfFile(handle, FILE_MAP_ALL_ACCESS, 0, 0, 0));
+
+			memcpy(map1, value, sizeof(value));// * strlen(value));
 			// duplicr o handle para o passar do server para a rsposta
 			DuplicateHandle(	
 				GetCurrentProcess(),
@@ -293,7 +304,6 @@ VOID JPG_SearchServiceProcess(PJPG_SEARCH_SERVICE service, PROCESS_ENTRY_FUNC pr
 				DUPLICATE_SAME_ACCESS
 			);
 
-			PCSTR  map = static_cast<PCSTR> (MapViewOfFile(service_answer->MapFile, FILE_MAP_ALL_ACCESS, 0, 0, 0));
 
 			// Signal client that has answer
 			SetEvent(req->ClientEvent);

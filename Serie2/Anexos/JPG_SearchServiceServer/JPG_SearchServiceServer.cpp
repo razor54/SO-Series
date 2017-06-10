@@ -53,7 +53,7 @@ DWORD WINAPI work_routine(LPVOID param) {
 }
 
 // @param ctx No need for this implementation.
-static HANDLE SearchFileDir(PCSTR path, PCSTR searchArgs, LPVOID ctx) {
+static void SearchFileDir(PCSTR path, PCSTR searchArgs, LPVOID ctx, PCHAR * out) {
 
 	CHAR buffer[MAX_PATH]; // auxiliary buffer
 						   // the buffer is needed to define a match string that guarantees 
@@ -62,7 +62,7 @@ static HANDLE SearchFileDir(PCSTR path, PCSTR searchArgs, LPVOID ctx) {
 
 	WIN32_FIND_DATA fileData;
 	HANDLE fileIt = FindFirstFile(buffer, &fileData);
-	if (fileIt == INVALID_HANDLE_VALUE) return INVALID_HANDLE_VALUE;
+	if (fileIt == INVALID_HANDLE_VALUE) return ;
 
 	PLONG elem_number = new LONG();
 	PLONG curr = new LONG();
@@ -76,7 +76,7 @@ static HANDLE SearchFileDir(PCSTR path, PCSTR searchArgs, LPVOID ctx) {
 			if (strcmp(fileData.cFileName, ".") && strcmp(fileData.cFileName, "..")) {
 				sprintf_s(buffer, "%s%s/", path, fileData.cFileName);
 				// Recursively process child directory
-				SearchFileDir(buffer, searchArgs, ctx);
+				SearchFileDir(buffer, searchArgs, ctx,out);
 			}
 		}
 		else {
@@ -93,45 +93,33 @@ static HANDLE SearchFileDir(PCSTR path, PCSTR searchArgs, LPVOID ctx) {
 	} while (FindNextFile(fileIt, &fileData) == TRUE);
 
 	WaitForSingleObject(event, INFINITE);
-	LONG buffer_size = sizeof(PCTSTR)*(*elem_number);
 
+	LONG number = (*elem_number);
+	out = (PCHAR *)( malloc(sizeof(out)* number));
 
-
-	// criaçao da regiao de meoria partilhada
-	HANDLE handle = CreateFileMapping(
-		INVALID_HANDLE_VALUE,    // not a file but a page
-		NULL,                    // default security
-		PAGE_READWRITE,          // read/write access
-		0,                       // maximum object size (high-order DWORD)
-		buffer_size,             // maximum object size (low-order DWORD)
-		NULL);
-
-	PCHAR view_of_file = static_cast<PCHAR>(MapViewOfFile(handle, FILE_MAP_WRITE, 0, 0, 0));
-
-	PCHAR str = "tudo o tempo levou.";
-	int index = 0;
-	//copia dos valores para a rmp
+	int index=0;
 	for (list<PCTSTR>::iterator list_iter = files.begin(); list_iter != files.end(); list_iter++)
 	{
 
-		view_of_file = _strdup(str);
-
+		out[index] = _strdup(*list_iter);
+//		out[index] = _strdup(*list_iter);
 		++index;
 	}
+	printf(out[1]);
 	//	memcpy(view_of_file, map_view_of_file, buffer_size);
 	FindClose(fileIt);
-	return handle;
 }
 
 
 
+;//
 
-
-HANDLE ProcessRepository(PCSTR repository, PCSTR filter) {
+LPVOID ProcessRepository(PCSTR repository, PCSTR filter) {
 
 	//envio do handle da rmp
-	return  SearchFileDir(repository, filter, nullptr);
-
+	PCHAR * p = nullptr;// = new PCHAR();
+	SearchFileDir(repository, filter, nullptr, p);
+	return p;
 }
 
 INT main(INT argc, PCHAR argv[]) {

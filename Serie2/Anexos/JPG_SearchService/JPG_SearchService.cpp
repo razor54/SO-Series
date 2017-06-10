@@ -64,7 +64,7 @@ static VOID JPG_SearchServiceDestroy(PJPG_SEARCH_SERVICE service) {
 	if (service->mapHandle != NULL) CloseHandle(service->mapHandle);
 	if (service->shared != NULL) UnmapViewOfFile(service->shared);
 	if (service->avaiableRequests != NULL) CloseHandle(service->avaiableRequests);
-	if (service->serverProcHandle != NULL) CloseHandle(service->serverProcHandle);
+//	if (service->serverProcHandle != NULL) CloseHandle(service->serverProcHandle);
 	if (service->mutex != NULL) CloseHandle(service->mutex);
 	service->opened = FALSE;
 	free(service);
@@ -131,6 +131,7 @@ static INT JPG_SearchServiceProcessRepository_internalCmd(PJPG_SEARCH_SERVICE se
 		case SEARCH_CMD: {
 			PSEARCH_CMD_ARGS sargs = (PSEARCH_CMD_ARGS)args;
 			request->AnswerIndex = answerIndex;
+			request->ServiceId = GetCurrentProcessId();
 			strcpy_s(request->Repository, MAX_MSG_SIZE, sargs->repository);
 			strcpy_s(request->Filter, MAX_MSG_SIZE, sargs->filter);
 			break;
@@ -156,10 +157,13 @@ PCHAR RetrieveAnswer(PJPG_SEARCH_SERVICE service, int answerIndex) {
 
 	// wait for answer
 	WaitForSingleObject(service->answerEvent, INFINITE);
+	PJPG_SEARCH_SERVICE_ANSWER answer = &buf->answers[answerIndex];
+	PCHAR  map_view_of_file = static_cast<PCHAR >(MapViewOfFile(answer->MapFile, FILE_MAP_READ, 0, 0, 0));
 	
+	PCHAR response = map_view_of_file;
 	FreeAnswerSlot(service, answerIndex);
 
-	return NULL;
+	return response;
 }
 
 
@@ -260,22 +264,42 @@ VOID JPG_SearchServiceProcess(PJPG_SEARCH_SERVICE service, PROCESS_ENTRY_FUNC pr
 		WaitForSingleObject(service->avaiableRequests, INFINITE);
 		WaitForSingleObject(service->mutex, INFINITE);
 		// Makes a copy of request to get out of exclusion quickly (before processing request)
-		JPG_SEARCH_SERVICE_REQUEST _req = buf->entries[buf->getIndex];
-		PJPG_SEARCH_SERVICE_REQUEST req = &_req;
-		buf->getIndex = (buf->getIndex + 1) % MAX_SLOTS;
+		PJPG_SEARCH_SERVICE_REQUEST req = &buf->entries[buf->getIndex];
+		buf->getIndex = (buf->getIndex + 1) % MAX_SLOTS;	// incremento buffer circular
 
 		ReleaseMutex(service->mutex);
 		ReleaseSemaphore(service->avaiableReqSpace, 1, NULL);
 
 		// process commands
 		if (req->Cmd == SEARCH_CMD) {
+
+			PJPG_SEARCH_SERVICE_ANSWER service_answer = &buf->answers[req->AnswerIndex];
+			
 			// Normal resquest; process request
-			PCHAR answer =	(PCHAR)processor(req->Repository,req->Filter);
+
+
+			HANDLE handle = HANDLE(processor(req->Repository, req->Filter));
+			
+			PCSTR  map1 = static_cast<PCSTR> (MapViewOfFile(handle, FILE_MAP_ALL_ACCESS, 0, 0, 0));
+
+			// duplicr o handle para o passar do server para a rsposta
+			DuplicateHandle(	
+				GetCurrentProcess(),
+				handle,
+				OpenProcess(PROCESS_DUP_HANDLE, FALSE,req->ServiceId),
+				&service_answer->MapFile,
+				0,
+				FALSE,
+				DUPLICATE_SAME_ACCESS
+			);
+
+			PCSTR  map = static_cast<PCSTR> (MapViewOfFile(service_answer->MapFile, FILE_MAP_ALL_ACCESS, 0, 0, 0));
+
 			// Signal client that has answer
 			SetEvent(req->ClientEvent);
+			
 			// Free resources 
 			CloseHandle(req->ClientEvent);
-			free(answer);
 		}
 		else if (req->Cmd == FREE_MAP_CMD) {
 			;

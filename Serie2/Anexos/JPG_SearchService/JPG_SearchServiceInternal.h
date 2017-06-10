@@ -29,7 +29,7 @@ typedef struct JPG_SearchServiceRequest {
 		};
 		HANDLE	MapHandle;
 	};
-
+	DWORD ServiceId;
 	DWORD   AnswerIndex;
 	HANDLE	ClientEvent;
 } JPG_SEARCH_SERVICE_REQUEST, *PJPG_SEARCH_SERVICE_REQUEST;

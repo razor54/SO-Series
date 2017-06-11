@@ -96,22 +96,23 @@ static POUTP SearchFileDir(PCHAR path, PCHAR searchArgs, LPVOID ctx) {
 	WaitForSingleObject(event, INFINITE);
 
 	
-	LONG number = (*elem_number);
+	DWORD number = (*elem_number);
 	PCHAR * out = (PCHAR *)( malloc(sizeof(out)* number));
 	//std::copy(files.begin(), files.end(), out);
 
 	int index = 0;
+	DWORD size = 0;
 	for (list<PCHAR>::iterator list_iter = files.begin(); list_iter != files.end(); list_iter++){
-		out[index] = *list_iter;
+		PCHAR iter = *list_iter;
+		out[index] = iter;
+		size += strlen(iter) + 1;
 		++index;
 	}
 
-	//printf(out[4]);
-	//	memcpy(view_of_file, map_view_of_file, buffer_size);
 	FindClose(fileIt);
 
 
-	return new OUTP{ number,out };
+	return new OUTP{ number,out,size };
 }
 
 
@@ -122,34 +123,43 @@ HANDLE  ProcessRepository(PCSTR repository, PCSTR filter, DWORD serviceID) {
 
 	//envio do handle da rmp
 
-	POUTP search_file_dir = SearchFileDir((PCHAR)repository, (PCHAR)filter, nullptr);
-	unsigned dw_maximum_size_low = sizeof(search_file_dir->elems)* search_file_dir->elem_number;
+	POUTP out_files = SearchFileDir((PCHAR)repository, (PCHAR)filter, nullptr);
+	unsigned region_size =out_files->fileSize;
 	// criaçao da regiao de meoria partilhada
 	HANDLE handle = CreateFileMapping(
 		INVALID_HANDLE_VALUE,    // not a file but a page
 		NULL,                    // default security
 		PAGE_READWRITE,          // read/write access
 		0,                       // maximum object size (high-order DWORD)
-		dw_maximum_size_low,             // maximum object size (low-order DWORD)
+		region_size+ sizeof(DWORD),             // maximum object size (low-order DWORD)
 		NULL);
 	// duplicr o handle para o passar do server para a rsposta
 
-	PCHAR *  map1 = static_cast<PCHAR*> (MapViewOfFile(handle, FILE_MAP_ALL_ACCESS, 0, 0, 0));
-
-	memcpy(map1, search_file_dir->elems, dw_maximum_size_low);
-
-	printf(map1[1]);
+	PCHAR map = (PCHAR) (MapViewOfFile(handle, FILE_MAP_ALL_ACCESS, 0, 0, 0));
+	 ZeroMemory(map,region_size	);
+	PCHAR adress = map;
+	for (int i = 0; i < out_files->elem_number; ++i) {
+		PCHAR str = out_files->elems[i];
+		DWORD str_size = strlen(str)+1;
+		strcpy_s(adress, str_size, str);
+		adress += str_size;
+		free(str);
+	}
+	free(out_files->elems);
+	//memcpy(adress, &out_files->elem_number, sizeof(DWORD));
+		
 	HANDLE toret;
-	DuplicateHandle(
+	if(!DuplicateHandle(
 		GetCurrentProcess(),
 		handle,
-		OpenProcess(PROCESS_DUP_HANDLE, FALSE, serviceID),
-		//GetCurrentProcess(),
+		OpenProcess(PROCESS_ALL_ACCESS, FALSE, serviceID),
 		&toret,
 		0,
 		FALSE,
 		DUPLICATE_SAME_ACCESS
-	);
+	)) {
+		printf("UNABLE TO DUPLICATE!");
+	};
 	return toret;
 }
 

@@ -64,7 +64,7 @@ static VOID JPG_SearchServiceDestroy(PJPG_SEARCH_SERVICE service) {
 	if (service->mapHandle != NULL) CloseHandle(service->mapHandle);
 	if (service->shared != NULL) UnmapViewOfFile(service->shared);
 	if (service->avaiableRequests != NULL) CloseHandle(service->avaiableRequests);
-//	if (service->serverProcHandle != NULL) CloseHandle(service->serverProcHandle);
+	//if (service->serverProcHandle != NULL) CloseHandle(service->serverProcHandle);
 	if (service->mutex != NULL) CloseHandle(service->mutex);
 	service->opened = FALSE;
 	free(service);
@@ -158,9 +158,10 @@ PCHAR RetrieveAnswer(PJPG_SEARCH_SERVICE service, int answerIndex) {
 	// wait for answer
 	WaitForSingleObject(service->answerEvent, INFINITE);
 	PJPG_SEARCH_SERVICE_ANSWER answer = &buf->answers[answerIndex];
-	PCHAR  *  map_view_of_file = static_cast<PCHAR *>(MapViewOfFile(answer->MapFile, FILE_MAP_READ, 0, 0, 0));
-	
-	PCHAR response = map_view_of_file[0];
+
+	PCHAR response = 
+		static_cast<PCHAR >(MapViewOfFile(answer->MapFile, FILE_MAP_READ, 0, 0, 0));
+
 	FreeAnswerSlot(service, answerIndex);
 
 	return response;
@@ -273,18 +274,12 @@ VOID JPG_SearchServiceProcess(PJPG_SEARCH_SERVICE service, PROCESS_ENTRY_FUNC pr
 		// process commands
 		if (req->Cmd == SEARCH_CMD) {
 
-			PJPG_SEARCH_SERVICE_ANSWER service_answer = &buf->answers[req->AnswerIndex];
-			
+//			PJPG_SEARCH_SERVICE_ANSWER service_answer = 		
 			// Normal resquest; process request
-
-
-			service_answer->MapFile = static_cast<POUTP>(processor(req->Repository, req->Filter,req->ServiceId));
-	
-
-			
+			buf->answers[req->AnswerIndex].MapFile =
+				static_cast<HANDLE>(processor(req->Repository, req->Filter,req->ServiceId));
 			// Signal client that has answer
 			SetEvent(req->ClientEvent);
-			
 			// Free resources 
 			CloseHandle(req->ClientEvent);
 		}
@@ -295,7 +290,7 @@ VOID JPG_SearchServiceProcess(PJPG_SEARCH_SERVICE service, PROCESS_ENTRY_FUNC pr
 }
 
 VOID JPG_SearchReleaseAnswer(PCHAR answer) {
-	free(answer);
+	UnmapViewOfFile(answer);
 }
 
 PJPG_SEARCH_SERVICE JPG_SearchServiceCreate(PCHAR serviceName) {

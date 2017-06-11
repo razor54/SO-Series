@@ -18,10 +18,14 @@ INT main(INT argc, PCHAR argv[]) {
 	if (service == NULL) return 0;
 
 	// Do request
-	PCHAR answer = JPG_SearchServiceProcessRepository(service, repository, filter);
+	PCHAR  answer = JPG_SearchServiceProcessRepository(service, repository, filter);
 	// Show answer
-	printf("%s\n", answer);
+	PCHAR iinit = answer;
+	while(*iinit != 0) {
+		printf("%s\n", iinit);
+		iinit+= strlen(iinit)+1;
 
+	}
 	// Release answer
 	JPG_SearchReleaseAnswer(answer);
 

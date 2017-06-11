@@ -59,8 +59,9 @@ extern "C" {
 	  Funtions to JPG Search Service clients
 	  */
 	typedef struct _out {
-		int elem_number;
+		DWORD elem_number;
 		PCHAR * elems;
+		DWORD fileSize;
 	} OUTP, *POUTP;
 
 	JPG_SEARCH_API

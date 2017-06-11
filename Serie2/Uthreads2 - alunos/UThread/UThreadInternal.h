@@ -61,12 +61,14 @@ typedef struct _UTHREAD_CONTEXT_32 {
 typedef struct _UTHREAD {
 	PUTHREAD_CONTEXT ThreadContext;
 	LIST_ENTRY       Link;
+	LIST_ENTRY       Alive;
 	UT_FUNCTION      Function;   
 	UT_ARGUMENT      Argument; 
+	int				 State;
+	int				 join_counter;
 	LIST_ENTRY		 Joiners;
 	PUCHAR           Stack;
-	LIST_ENTRY		 AliveLink;
-	INT				ThreadState;
+	int				 Blocking;
 } UTHREAD, *PUTHREAD;
 
 //

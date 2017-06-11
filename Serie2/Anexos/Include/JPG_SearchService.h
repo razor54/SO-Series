@@ -49,7 +49,7 @@ typedef struct JPG_SearchService {
 /*
 process entry callback
 */
-typedef LPVOID(*PROCESS_ENTRY_FUNC)(PCSTR repository, PCSTR filter);
+typedef HANDLE(*PROCESS_ENTRY_FUNC)(PCSTR repository, PCSTR filter, DWORD serviceID);
 
 #ifdef __cplusplus
 extern "C" {
@@ -58,7 +58,10 @@ extern "C" {
 	/*
 	  Funtions to JPG Search Service clients
 	  */
-
+	typedef struct _out {
+		int elem_number;
+		PCHAR * elems;
+	} OUTP, *POUTP;
 
 	JPG_SEARCH_API
 		PCHAR JPG_SearchServiceProcessRepository(PJPG_SEARCH_SERVICE service, PCSTR repository, PCSTR filter);

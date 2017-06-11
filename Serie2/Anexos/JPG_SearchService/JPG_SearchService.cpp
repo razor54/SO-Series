@@ -278,33 +278,10 @@ VOID JPG_SearchServiceProcess(PJPG_SEARCH_SERVICE service, PROCESS_ENTRY_FUNC pr
 			// Normal resquest; process request
 
 
-			PCHAR * value = static_cast<PCHAR*>(processor(req->Repository, req->Filter));
+			service_answer->MapFile = static_cast<POUTP>(processor(req->Repository, req->Filter,req->ServiceId));
+	
 
-
-			// criaçao da regiao de meoria partilhada
-			HANDLE handle = CreateFileMapping(
-				INVALID_HANDLE_VALUE,    // not a file but a page
-				NULL,                    // default security
-				PAGE_READWRITE,          // read/write access
-				0,                       // maximum object size (high-order DWORD)
-				sizeof(value),             // maximum object size (low-order DWORD)
-				NULL);
-
-			PCHAR *  map1 = static_cast<PCHAR*> (MapViewOfFile(handle, FILE_MAP_ALL_ACCESS, 0, 0, 0));
-
-			memcpy(map1, value, sizeof(value));// * strlen(value));
-			// duplicr o handle para o passar do server para a rsposta
-			DuplicateHandle(	
-				GetCurrentProcess(),
-				handle,
-				OpenProcess(PROCESS_DUP_HANDLE, FALSE,req->ServiceId),
-				&service_answer->MapFile,
-				0,
-				FALSE,
-				DUPLICATE_SAME_ACCESS
-			);
-
-
+			
 			// Signal client that has answer
 			SetEvent(req->ClientEvent);
 			

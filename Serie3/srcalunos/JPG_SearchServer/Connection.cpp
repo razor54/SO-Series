@@ -51,7 +51,8 @@ int ConnectionGetLineAsync(PCONNECTION cn, char* buffer, int bufferSize)
 {
 	int i = 0;
 	int c;
-
+	if(cn->rPos>cn->len)
+		cn->rPos = 0;
 	while (i < bufferSize - 1 && (c = cn->bufferIn[cn->rPos++]) != -1 && c != '\r')
 		buffer[i++] = c;
 

@@ -247,7 +247,7 @@ BOOL ProcessRequest(PCONNECTION cn) {
 	char requestType[MAXSIZE];
 
 	int lineSize;
-
+	cn->rPos = 0;
 	if ((lineSize = ConnectionGetLineAsync(cn, requestType, MAXSIZE)) > 0)
 	{
 		MessageProcessor processor;
